@@ -2,6 +2,7 @@ import requests
 import pathlib
 import os
 import urllib
+import json
 from bs4 import BeautifulSoup
 
 def read_file(filename):
@@ -14,12 +15,12 @@ def parse_pages(filename):
     text = read_file(filename)
 
     soup = BeautifulSoup(text)
-    #Get caption
+    #Get mushroom name
     caption = soup.find_all('div', {'class': 'caption'})
-    dimension = soup.find_all('div', {'class': 'labelus'})
-    descr_dim = soup.find_all('div', {'class': ['textus', 'longtextus']})
-    mushroom_name = []
-    mushroom_info = []
+    #Get mushroom info
+    label_of_info = soup.find_all('div', {'class': 'labelus'})
+    info_content = soup.find_all('div', {'class': ['textus', 'longtextus']})
+    iter = 2
     for item in caption:
         caption_name = item.find('b')
         tag_list = caption_name.contents
@@ -28,21 +29,12 @@ def parse_pages(filename):
         tag_list[0] = tag_list[0].split('(')[0]
         tag_list[0] = tag_list[0].strip()
         tag  = tag_list[0]
-        '''mushroom_name.append(tag)
-        for dim, descr in zip(dimension, descr_dim):
-            str = dim.contents[0] + ' ' + descr.contents[0]
-            mushroom_info.append(str)
-           ''' '''name = dim.text
-_descr = descr.text
-if (name == 'Dimensions'):
-    print(tag, name, _descr)
-if (name == 'Description'):
-    print(tag, name, _descr)
-    break'''
+        info_string = label_of_info[iter].text + " "+ info_content[iter].text + " " + label_of_info[iter+2].text + " " + info_content[iter+2].text
+        results[tag] = info_string
+        iter += 6
         #Make dir
-      #  pathlib.Path('./Inedible/' + tag).mkdir(parents=True, exist_ok=True)
+    pathlib.Path('./Inedible/' + tag).mkdir(parents=True, exist_ok=True)
 
-    '''
     #Download images
     images_tag = soup.find_all('div', {'class': 'images'})
     for image_tag in images_tag:
@@ -57,9 +49,9 @@ if (name == 'Description'):
             path_to_image = ('./Inedible/' + mushroom_title_dir + '/' + mushroom_title_img + '_' + '%d' + '.jpg') % (image_number)
             image_number +=1
             urllib.request.urlretrieve(concrete_image_ref, path_to_image)
-    '''
+
     return results
-'''
+
 pathlib.Path('./inedible_pages/').mkdir(parents=True, exist_ok=True)
 #Download pages
 for page in range(7):
@@ -70,10 +62,15 @@ for page in range(7):
     mushrooms_list = soup.find('div', {'id': 'mushroom-list'})
     with open('./inedible_pages/page_%d.html' % (page), 'wb') as output_file:
         output_file.write(mushrooms_list.encode('cp1251'))
-'''
-results = []
-for filename in os.listdir('./inedible_pages/'):
-    results.extend(parse_pages('./inedible_pages/' + filename))
+
+path_to_pages = './Pages/inedible_pages/'
+list_of_dictionaries = []
+for filename in os.listdir(path_to_pages):
+    list_of_dictionaries.append(parse_pages(path_to_pages + filename))
+
+for dictionary in list_of_dictionaries:
+    with open('data.txt', 'a') as outfile:
+        json_data = json.dump(dictionary, outfile)
 
 
 
