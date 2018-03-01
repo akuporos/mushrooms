@@ -4,6 +4,9 @@ from bs4 import BeautifulSoup
 import requests
 import glob
 import logging
+from concurrent.futures import ThreadPoolExecutor
+
+executor = ThreadPoolExecutor(max_workers=30)
 
 def send_request_and_get_list(cnt_page, name_for_ref):
     headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
@@ -26,14 +29,14 @@ def find_last_page(page_count_tag_list):
     last_page = concrete_tag.text
     return int(last_page)
 
-def download_concrete_image(concrete_mushroom_image, name, is_first):
+def download_concrete_image(concrete_mushroom_image, name):
     image_container_tag = concrete_mushroom_image.find('div', {'class' : 'thumbnail-container'})
     image_tag = image_container_tag.find('div', {'data-toggle' : 'expand-icon'})
     image_reference_tag = image_tag.find_all('a')
     image_tag = image_reference_tag[1].get('data-title')
     image_reference = BeautifulSoup(image_tag)
     reference = image_reference.a['href']
-    logging.info(reference + 'is downloadwing')
+    logging.info(reference + ' is downloadwing')
     #find and create a path to mushroom directory, where pictures will be upload
     path = '*/*/' + name
     path_to_directory = './' + glob.glob(path)[0] + '/'
@@ -46,30 +49,35 @@ def download_concrete_image(concrete_mushroom_image, name, is_first):
     path_to_image = (path_to_directory + '/' + mushroom_title_img + '_' + '%d' + '.jpg') % (image_number)
     try:
         urllib.request.urlretrieve(reference, path_to_image)
-    except urllib.URLError as e:
-        logging.error("Failed to download " + reference + " to " + path_to_image + "with code" + e.code)
+        logging.info(reference + ' download DONE')
+    except Exception:
+        logging.exception("Failed to download " + reference + " to " + path_to_image + "with code" + str(e.code))
+    return
+
+def download_from_page(cnt_page, all_mushrooms_results, name):
+    mushrooms_list = []
+    logging.info("page " + str(cnt_page) + ' is downloadwing')
+    # all pictures of mashrooms on this page
+    mushrooms_list = all_mushrooms_results.find_all('div', {'class': 'col-xs-12 col-sm-6 col-md-4 col-lg-4'})
+    # download pictures from this page
+    for concrete_mushroom_image in mushrooms_list:
+        download_concrete_image(concrete_mushroom_image, name)
+    logging.info("page " + str(cnt_page) + ' download DONE')
     return
 
 #цикл по страницам
 def download_pictures(all_mushrooms_results, last_page, name):
     cnt_page = 1
-    mushrooms_list = []
-    is_first = True
     name_for_ref = name.split()[0] + "+" + name.split()[1]
     while cnt_page <= last_page:
-        logging.info(str(cnt_page) + 'is downloadwing')
-        #all pictures of mashrooms on this page
-        mushrooms_list = all_mushrooms_results.find_all('div', {'class': 'col-xs-12 col-sm-6 col-md-4 col-lg-4'})
-        #download pictures from this page
-        for concrete_mushroom_image in mushrooms_list:
-            download_concrete_image(concrete_mushroom_image, name, is_first)
+        executor.submit(download_from_page(cnt_page, all_mushrooms_results, name))
+        # new page
         cnt_page += 1
-        #new page
         all_mushrooms_results = send_request_and_get_list(cnt_page, name_for_ref)
     return
 
 def main():
-    logging.basicConfig(format= u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s %(message)s', filename='myapp.log', level=logging.ERROR)
+    logging.basicConfig(format= u's[LINE:%(lineno)d]# %(levelname)-8s %(message)s', filename='myapp.log', level=logging.INFO)
     with open('mushrooms.txt') as file:
         mushroom_names = file.readlines()
     mushroom_names = [x.strip() for x in mushroom_names]
