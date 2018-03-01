@@ -6,21 +6,24 @@ import glob
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
-executor = ThreadPoolExecutor(max_workers=30)
+executor = ThreadPoolExecutor(max_workers=3)
 
 def send_request_and_get_list(cnt_page, name_for_ref):
     headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
     session = requests.Session()
     url = 'http://mushroomobserver.org/image/image_search?page={}&pattern='.format(cnt_page) + name_for_ref
-    request = session.get(url, headers=headers)
-    if request.status_code != 200:
-        logging.error("Request for" + " " + name_for_ref + " " + "in page" + " " + str(cnt_page) + " is failed " + request.raise_for_status())
-    text = request.text
-    soup = BeautifulSoup(text)
-    # find page count
-    all_mushrooms = soup.find('div', {'class': 'push-down push-up'})
-    all_mushrooms_results = all_mushrooms.find('div', {'class': 'results'})
-    return  all_mushrooms_results
+    try:
+        request = session.get(url, headers=headers)
+        request.raise_for_status()
+        text = request.text
+        soup = BeautifulSoup(text)
+        # find page count
+        all_mushrooms = soup.find('div', {'class': 'push-down push-up'})
+        all_mushrooms_results = all_mushrooms.find('div', {'class': 'results'})
+        return all_mushrooms_results
+    except Exception:
+        logging.exception("Request for" + " " + name_for_ref + " " + "in page" + " " + str(cnt_page) + " is failed ")
+    return
 
 def find_last_page(page_count_tag_list):
     size_of_page_count_tag_list = round(len(page_count_tag_list)/2)
@@ -70,14 +73,14 @@ def download_pictures(all_mushrooms_results, last_page, name):
     cnt_page = 1
     name_for_ref = name.split()[0] + "+" + name.split()[1]
     while cnt_page <= last_page:
-        executor.submit(download_from_page(cnt_page, all_mushrooms_results, name))
+        executor.submit(download_from_page, cnt_page, all_mushrooms_results, name)
         # new page
         cnt_page += 1
         all_mushrooms_results = send_request_and_get_list(cnt_page, name_for_ref)
     return
 
 def main():
-    logging.basicConfig(format= u's[LINE:%(lineno)d]# %(levelname)-8s %(message)s', filename='myapp.log', level=logging.INFO)
+    logging.basicConfig(format= u's[LINE:%(lineno)d]# %(levelname)-8s %(message)s', filename='myapp1.log', level=logging.INFO)
     with open('mushrooms.txt') as file:
         mushroom_names = file.readlines()
     mushroom_names = [x.strip() for x in mushroom_names]
